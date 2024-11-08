@@ -1,166 +1,139 @@
-import tkinter as tk
-from tkinter import colorchooser, filedialog
-from PIL import Image, ImageDraw
-
-''' Пользователь может рисовать на холсте, выбирать цвет и размер кисти, очищать холст и сохранять в формате PNG.
-Данная программа представляет собой пример использования библиотеки TKinter
-для создания графического интерфейса. Конструктор класса принимает один параметр:
-- root: Это корневой виджет Tkinter, который служит контейнером для всего интерфейса приложения.'''
+import tkinter as tk  # Импортируем библиотеку tkinter для создания графического интерфейса
+from tkinter import colorchooser, filedialog  # Импортируем модули для выбора цвета и диалогового окна сохранения файлов
+from PIL import Image, ImageDraw  # Импортируем библиотеки PIL для работы с изображениями
 
 
 class DrawingApp:
     def __init__(self, root):
+        # Инициализация основного окна приложения
         self.root = root
-        # Устанавливается заголовок окна приложения.
-        self.root.title("Рисовалка с сохранением в PNG")
+        self.root.title("Рисовалка с сохранением в PNG")  # Устанавливаем заголовок окна
+        self.image = Image.new("RGB", (800, 400), "white")  # Создаем новое изображение с белым фоном
+        self.draw = ImageDraw.Draw(self.image)  # Создаем объект для рисования на изображении
+        self.canvas = tk.Canvas(root, width=800, height=400, bg='white')  # Создаем холст для рисования
+        self.canvas.pack()  # Размещаем холст в окне
+        self.setup_ui()  # Настраиваем пользовательский интерфейс
+        self.last_x, self.last_y = None, None  # Переменные для хранения последних координат мыши
+        self.pen_color = 'black'  # Устанавливаем цвет кисти по умолчанию
+        self.previous_color = self.pen_color  # Переменная для хранения предыдущего цвета кисти
+        self.brush_size = 1  # Устанавливаем размер кисти по умолчанию
+        self.is_eraser_active = False  # Переменная для отслеживания состояния ластика
+        # Привязываем события мыши к соответствующим методам
+        self.canvas.bind('<B1-Motion>', self.paint)  # Рисование при перемещении мыши с нажатой левой кнопкой
+        self.canvas.bind('<ButtonRelease-1>', self.reset)  # Сброс координат при отпускании кнопки мыши
+        self.canvas.bind('<Button-3>', self.start_color_picker)  # Начало выбора цвета при нажатии правой кнопки мыши
+        self.canvas.bind('<ButtonRelease-3>',
+                         self.release_color_picker)  # Завершение выбора цвета при отпускании правой кнопки
 
-        # Создается объект изображения (self.image) с использованием библиотеки Pillow.
-        # Это изображение служит виртуальным холстом, на котором происходит рисование.
-        # Изначально оно заполнено белым цветом.
-        self.image = Image.new("RGB", (600, 400), "white")
-
-        # Инициализируется объект ImageDraw.Draw(self.image), который позволяет рисовать на объекте изображения
-        self.draw = ImageDraw.Draw(self.image)
-
-        # Создается виджет Canvas Tkinter, который отображает графический интерфейс для рисования.
-        # Размеры холста установлены в 600x400 пикселей
-        self.canvas = tk.Canvas(root, width=600, height=400, bg='white')
-        self.canvas.pack()
-
-        # Определяем все атрибуты экземпляра внутри __init__
-        # Переменная для хранения текущего размера кисти
-        self.brush_size_var = tk.StringVar(value="1")
-        self.eraser_size_var = tk.StringVar(value="5")
-
-        # Вызывается метод self.setup_ui(), который настраивает элементы управления интерфейса
-        self.setup_ui()
-
-        self.last_x, self.last_y = None, None
-        self.pen_color = 'black'
-        self.previous_color = self.pen_color
-        self.brush_size = 1
-        self.eraser_size = 5
-        self.is_eraser_active = False
-
-        self.canvas.bind('<B1-Motion>', self.paint)
-        self.canvas.bind('<ButtonRelease-1>', self.reset)
-
-    ''' Этот метод отвечает за создание и расположение виджетов управления'''
-
-    # Кнопки "Очистить", "Выбрать цвет" и "Сохранить" позволяют пользователю очищать холст,
-    # выбирать цвет кисти и сохранять текущее изображение
     def setup_ui(self):
-        control_frame = tk.Frame(self.root)
-        control_frame.pack(fill=tk.X)
-
-        color_button = tk.Button(control_frame, text="Выбрать цвет кисти", command=self.choose_color)
-        color_button.pack(side=tk.LEFT)
-
-        size_label = tk.Label(control_frame, text="Выбрать размер кисти:")
-        size_label.pack(side=tk.LEFT)
-
-        # Список предопределенных размеров кисти
-        sizes = [1, 2, 5, 10]
-
-        # Создание выпадающего списка для выбора размера кисти
+        # Настройка пользовательского интерфейса
+        control_frame = tk.Frame(self.root)  # Создаем фрейм для кнопок управления
+        control_frame.pack(fill=tk.X)  # Размещаем фрейм по ширине окна
+        color_button = tk.Button(control_frame, text="Выбрать цвет кисти",
+                                 command=self.choose_color)  # Кнопка выбора цвета
+        color_button.pack(side=tk.LEFT)  # Размещаем кнопку слева
+        size_label = tk.Label(control_frame, text="Выбрать толщину кисти/ластика:")  # Метка для выбора размера
+        size_label.pack(side=tk.LEFT)  # Размещаем метку слева
+        self.brush_size_var = tk.StringVar(value="1")  # Переменная для хранения размера кисти
+        sizes = [1, 2, 5, 10]  # Доступные размеры кисти
+        # Создаем выпадающее меню для выбора размера кисти
         self.brush_size_menu = tk.OptionMenu(control_frame, self.brush_size_var, *sizes, command=self.update_brush_size)
-        self.brush_size_menu.pack(side=tk.LEFT)
+        self.brush_size_menu.pack(side=tk.LEFT)  # Размещаем меню слева
+        eraser_button = tk.Button(control_frame, text="Выбрать ластик",
+                                  command=self.toggle_eraser)  # Кнопка для выбора ластика
+        eraser_button.pack(side=tk.LEFT)  # Размещаем кнопку слева
+        # Добавляем метку с информацией о выборе пипетки
+        info_label = tk.Label(control_frame, text="Чтобы выбрать пипетку - нажмите правую кнопку мыши")
+        info_label.pack(side=tk.LEFT)
 
-        eraser_button = tk.Button(control_frame, text="Выбрать ластик", command=self.toggle_eraser)
-        eraser_button.pack(side=tk.LEFT)
-
-        eraser_size_label = tk.Label(control_frame, text="Выбрать размер ластика:")
-        eraser_size_label.pack(side=tk.LEFT)
-
-        self.eraser_size_menu = tk.OptionMenu(control_frame, self.eraser_size_var, *sizes,
-                                              command=self.update_eraser_size)
-        self.eraser_size_menu.pack(side=tk.LEFT)
-
-        # Перемещение кнопок "Сохранить" и "Очистить" в конец
-        clear_button = tk.Button(control_frame, text="Очистить", command=self.clear_canvas)
-        clear_button.pack(side=tk.LEFT)
-
-        save_button = tk.Button(control_frame, text="Сохранить", command=self.save_image)
-        save_button.pack(side=tk.LEFT)
+        clear_button = tk.Button(control_frame, text="Очистить", command=self.clear_canvas)  # Кнопка для очистки холста
+        clear_button.pack(side=tk.LEFT)  # Размещаем кнопку слева
+        save_button = tk.Button(control_frame, text="Сохранить",
+                                command=self.save_image)  # Кнопка для сохранения изображения
+        save_button.pack(side=tk.LEFT)  # Размещаем кнопку слева
 
     def update_brush_size(self, size):
-        self.brush_size = int(size)
+        # Обновление размера кисти
+        self.brush_size = int(size)  # Присваиваем новый размер кисти
 
-    def update_eraser_size(self, size):
-        self.eraser_size = int(size)
+    def clear_canvas(self):
+        # Очистка холста и изображения
+        self.canvas.delete("all")  # Удаляем все элементы с холста
+        self.image = Image.new("RGB", (800, 400), "white")  # Создаем новое изображение с белым фоном
+        self.draw = ImageDraw.Draw(self.image)  # Создаем новый объект для рисования
 
-    ''' paint - Функция вызывается при движении мыши с нажатой левой кнопкой по холсту. Она рисует 
-    линии на холсте Tkinter и параллельно на объекте Image из Pillow: - event: Событие содержит координаты 
-    мыши, которые используются для рисования. Линии рисуются между текущей и последней зафиксированной 
-    позициями курсора, что создает непрерывное изображение.'''
+    def choose_color(self):
+        # Выбор цвета кисти
+        if self.is_eraser_active:  # Если ластик активен
+            self.toggle_eraser()  # Деактивируем ластик
+        self.previous_color = self.pen_color  # Сохраняем текущий цвет кисти
+        self.pen_color = colorchooser.askcolor(color=self.pen_color)[1]  # Открываем диалог выбора цвета
+
+    def toggle_eraser(self):
+        # Переключение состояния ластика
+        self.is_eraser_active = not self.is_eraser_active  # Инвертируем состояние ластика
+        self.pen_color = 'white' if self.is_eraser_active else self.previous_color  # Устанавливаем цвет кисти в белый, если ластик активен
 
     def paint(self, event):
-        if self.is_eraser_active:
-            self.paint_eraser(event)
+        # Рисование на холсте
+        if self.is_eraser_active:  # Если ластик активен
+            self.paint_eraser(event)  # Вызываем метод рисования ластиком
         else:
-            if self.last_x and self.last_y:
+            if self.last_x and self.last_y:  # Если есть предыдущие координаты
+                # Рисуем линию на холсте
                 self.canvas.create_line(self.last_x, self.last_y, event.x, event.y,
                                         width=self.brush_size, fill=self.pen_color,
                                         capstyle=tk.ROUND, smooth=tk.TRUE)
+                # Рисуем линию на изображении
                 self.draw.line([self.last_x, self.last_y, event.x, event.y], fill=self.pen_color,
                                width=self.brush_size)
-
-        self.last_x = event.x
-        self.last_y = event.y
-
-    ''' reset -  Сбрасывает последние координаты кисти. Это необходимо для корректного начала новой линии
-    после того, как пользователь отпустил кнопку мыши и снова начал рисовать.'''
+        self.last_x = event.x  # Обновляем последние координаты
+        self.last_y = event.y  # Обновляем последние координаты
 
     def reset(self, event):
-        self.last_x, self.last_y = None, None
-
-    ''' clear_canvas - Очищает холст, удаляя все нарисованное, и пересоздает объекты Image и
-    ImageDrawдля нового изображения.'''
-
-    def clear_canvas(self):
-        self.canvas.delete("all")
-        self.image = Image.new("RGB", (600, 400), "white")
-        self.draw = ImageDraw.Draw(self.image)
-
-    ''' choose_color - Открывает стандартное диалоговое окно выбора цвета и устанавливает
-    выбранный цвет как текущий для кисти.'''
-
-    def choose_color(self):
-        self.previous_color = self.pen_color
-        self.pen_color = colorchooser.askcolor(color=self.pen_color)[1]
-
-    def toggle_eraser(self):
-        self.is_eraser_active = not self.is_eraser_active
-        if self.is_eraser_active:
-            self.pen_color = 'white'
-        else:
-            self.pen_color = self.previous_color
-
-    def paint_eraser(self, event):
-        if self.last_x and self.last_y:
-            self.canvas.create_line(self.last_x, self.last_y, event.x, event.y,
-                                    width=self.eraser_size, fill='white',
-                                    capstyle=tk.ROUND, smooth=tk.TRUE)
-            self.draw.line([self.last_x, self.last_y, event.x, event.y], fill='white',
-                           width=self.eraser_size)
-
-    ''' save_image - Позволяет пользователю сохранить изображение, используя стандартное
-    диалоговое окно для сохранения файла. Поддерживает только формат PNG. В случае успешного
-    сохранения выводится сообщение об успешном сохранении.'''
+        # Сброс последних координат
+        self.last_x, self.last_y = None, None  # Устанавливаем координаты в None
 
     def save_image(self):
+        # Сохранение изображения
         file_path = filedialog.asksaveasfilename(defaultextension=".png",
                                                  filetypes=[("PNG files", "*.png"),
-                                                            ("All files", "*.*")])
-        if file_path:
-            self.image.save(file_path)
+                                                            ("All files", "*.*")])  # Открываем диалог сохранения файла
+        if file_path:  # Если путь не пустой
+            self.image.save(file_path)  # Сохраняем изображение по указанному пути
+
+    def start_color_picker(self, event):
+        # Начало выбора цвета с помощью правой кнопки мыши
+        self.canvas.config(cursor="cross")  # Изменяем курсор на "крестик"
+        self.color_picker_x = event.x  # Запоминаем координаты при нажатии правой кнопки мыши
+        self.color_picker_y = event.y
+
+    def release_color_picker(self, event):
+        # Завершение выбора цвета
+        pixel_color = self.image.getpixel((self.color_picker_x, self.color_picker_y))  # Получаем цвет пикселя
+        self.pen_color = "#{:02x}{:02x}{:02x}".format(pixel_color[0], pixel_color[1],
+                                                      pixel_color[2])  # Устанавливаем цвет кисти
+        print(f"Выбранный цвет: {self.pen_color}")  # Выводим выбранный цвет в консоль
+        self.is_eraser_active = False  # Деактивируем ластик после выбора цвета
+        self.canvas.config(cursor="")  # Возвращаем курсор в исходное состояние
+
+    def paint_eraser(self, event):
+        # Рисование с помощью ластика
+        if self.last_x and self.last_y:  # Если есть предыдущие координаты
+            # Рисуем линию на холсте с белым цветом
+            self.canvas.create_line(self.last_x, self.last_y, event.x, event.y,
+                                    width=self.brush_size, fill='white',
+                                    capstyle=tk.ROUND, smooth=tk.TRUE)
+            # Рисуем линию на изображении с белым цветом
+            self.draw.line([self.last_x, self.last_y, event.x, event.y], fill='white',
+                           width=self.brush_size)
 
 
 def main():
-    root = tk.Tk()
-    app = DrawingApp(root)
-    root.mainloop()
+    root = tk.Tk()  # Создаем основное окно приложения
+    app = DrawingApp(root)  # Создаем экземпляр класса DrawingApp
+    root.mainloop()  # Запускаем главный цикл приложения
 
 
 if __name__ == "__main__":
-    main()
+    main()  # Запускаем приложение
